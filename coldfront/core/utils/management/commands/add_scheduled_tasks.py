@@ -9,7 +9,7 @@ from django_q.models import Schedule
 from django_q.tasks import schedule
 from coldfront.core.utils.common import import_from_settings
 
-ALLOCATION_EULA_ENABLE = import_from_settings('ALLOCATION_EULA_ENABLE', True)
+ALLOCATION_EULA_ENABLE = import_from_settings('ALLOCATION_EULA_ENABLE', False)
 base_dir = settings.BASE_DIR
 
 class Command(BaseCommand):
