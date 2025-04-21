@@ -28,7 +28,7 @@ PROJECT_ENABLE_PROJECT_REVIEW = ENV.bool('PROJECT_ENABLE_PROJECT_REVIEW', defaul
 #------------------------------------------------------------------------------
 # Enable EULA force agreement
 #------------------------------------------------------------------------------
-EULA_AGREEMENT = ENV.bool('EULA_AGREEMENT', default=True)
+ALLOCATION_EULA_ENABLE = ENV.bool('ALLOCATION_EULA_ENABLE', default=False)
 
 #------------------------------------------------------------------------------
 # Allocation related
@@ -50,7 +50,7 @@ ALLOCATION_ACCOUNT_MAPPING = ENV.dict('ALLOCATION_ACCOUNT_MAPPING', default={})
 SETTINGS_EXPORT += [
     'ALLOCATION_ACCOUNT_ENABLED',
     'CENTER_HELP_URL',
-    'EULA_AGREEMENT'
+    'ALLOCATION_EULA_ENABLE'
     'RESEARCH_OUTPUT_ENABLE',
     'GRANT_ENABLE',
     'PUBLICATION_ENABLE',

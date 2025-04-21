@@ -26,7 +26,7 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 from django.views.generic.base import TemplateView
 from django.views.generic.edit import FormView
-from coldfront.config.core import EULA_AGREEMENT
+from coldfront.config.core import ALLOCATION_EULA_ENABLE
 
 
 from coldfront.core.allocation.models import (Allocation,
@@ -701,7 +701,7 @@ class ProjectAddUsersView(LoginRequiredMixin, UserPassesTestMixin, View):
                 name='Active')
             allocation_user_active_status_choice = AllocationUserStatusChoice.objects.get(
                 name='Active')
-            if EULA_AGREEMENT:
+            if ALLOCATION_EULA_ENABLE:
                 allocation_user_pending_status_choice = AllocationUserStatusChoice.objects.get(
                     name='PendingEULA')
             
@@ -737,14 +737,14 @@ class ProjectAddUsersView(LoginRequiredMixin, UserPassesTestMixin, View):
                         has_eula = allocation.get_eula()
                         user_status_choice = allocation_user_active_status_choice
                         if allocation.allocationuser_set.filter(user=user_obj).exists():
-                            if EULA_AGREEMENT and has_eula and (allocation_user_obj.status != allocation_user_active_status_choice):
+                            if ALLOCATION_EULA_ENABLE and has_eula and (allocation_user_obj.status != allocation_user_active_status_choice):
                                 user_status_choice = allocation_user_pending_status_choice
                             allocation_user_obj = allocation.allocationuser_set.get(
                                 user=user_obj)
                             allocation_user_obj.status = user_status_choice
                             allocation_user_obj.save()
                         else:
-                            if EULA_AGREEMENT and has_eula:
+                            if ALLOCATION_EULA_ENABLE and has_eula:
                                 user_status_choice = allocation_user_pending_status_choice
                             allocation_user_obj = AllocationUser.objects.create(
                                 allocation=allocation,

@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.generic import TemplateView, ListView
 from django.views.generic.edit import CreateView
-from coldfront.config.core import EULA_AGREEMENT
+from coldfront.config.core import ALLOCATION_EULA_ENABLE
 
 from coldfront.core.resource.forms import ResourceAttributeCreateForm, ResourceSearchForm, ResourceAttributeDeleteForm
 from coldfront.core.resource.models import Resource, ResourceAttribute
@@ -316,7 +316,7 @@ class ResourceListView(LoginRequiredMixin, ListView):
 
         context['filter_parameters'] = filter_parameters
         context['filter_parameters_with_order_by'] = filter_parameters_with_order_by
-        context['EULA_AGREEMENT'] = EULA_AGREEMENT
+        context['ALLOCATION_EULA_ENABLE'] = ALLOCATION_EULA_ENABLE
 
         resource_list = context.get('resource_list')
         paginator = Paginator(resource_list, self.paginate_by)
