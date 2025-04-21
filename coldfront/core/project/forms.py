@@ -47,7 +47,7 @@ class ProjectAddUserForm(forms.Form):
 class ProjectAddUsersToAllocationForm(forms.Form):
                 
     allocation = forms.MultipleChoiceField(
-        widget=forms.CheckboxSelectMultiple(), required=False)
+        widget=forms.CheckboxSelectMultiple(attrs={'checked': 'checked'}), required=False)
 
     def __init__(self, request_user, project_pk, *args, **kwargs):
         super().__init__(*args, **kwargs)
