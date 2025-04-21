@@ -106,17 +106,19 @@ class AllocationDetailView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
         allocation_obj = get_object_or_404(Allocation, pk=pk)
         allocation_users = allocation_obj.allocationuser_set.exclude(
             status__name__in=['Removed',]).order_by('user__username')
-        user_in_allocation = allocation_users.filter(user=self.request.user).exists()
-        context['user_in_allocation'] = user_in_allocation
+        
+        if ALLOCATION_EULA_ENABLE:
+            user_in_allocation = allocation_users.filter(user=self.request.user).exists()
+            context['user_in_allocation'] = user_in_allocation
 
-        if user_in_allocation:
-            allocation_user_status = get_object_or_404(AllocationUser, allocation=allocation_obj, user=self.request.user).status
-            if allocation_obj.status.name == 'Active' and allocation_user_status.name == 'PendingEula':
-                messages.info(self.request, "This allocation is active, but you must agree to the EULA to use it!")
-            
-        context['eulas'] = allocation_obj.get_eula()
-        context['res'] = allocation_obj.get_parent_resource.pk
-        context['res_obj'] = allocation_obj.get_parent_resource
+            if user_in_allocation:
+                allocation_user_status = get_object_or_404(AllocationUser, allocation=allocation_obj, user=self.request.user).status
+                if allocation_obj.status.name == 'Active' and allocation_user_status.name == 'PendingEula':
+                    messages.info(self.request, "This allocation is active, but you must agree to the EULA to use it!")
+                
+            context['eulas'] = allocation_obj.get_eula()
+            context['res'] = allocation_obj.get_parent_resource.pk
+            context['res_obj'] = allocation_obj.get_parent_resource
 
         # set visible usage attributes
         alloc_attr_set = allocation_obj.get_attribute_set(self.request.user)
