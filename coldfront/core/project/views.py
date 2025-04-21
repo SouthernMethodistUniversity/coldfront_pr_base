@@ -612,24 +612,6 @@ class ProjectAddUsersSearchResultsView(LoginRequiredMixin, UserPassesTestMixin, 
                     users_already_in_project.append(ele)
             context['users_already_in_project'] = users_already_in_project
 
-        allocations_with_eula = {}
-        allocations_with_eula_names = {}
-        allocation_query_set = project_obj.allocation_set.filter(
-            resources__is_allocatable=True, is_locked=False, status__name__in=['Active', 'New', 'Renewal Requested', 'Payment Pending', 'Payment Requested', 'Paid'])
-        allocation_choices_sorted = sorted(allocation_query_set, key=lambda x: x.__str__())
-        for index in range(len(list(allocation_choices_sorted))):
-            if (list(allocation_choices_sorted)[index]).get_eula():
-                allocations_with_eula[f"id_allocationform-allocation_{index}"] = (list(allocation_choices_sorted)[index]).get_eula()
-                allocations_with_eula_names[f"id_allocationform-allocation_{index}"] = allocation_choices_sorted[index].__str__()
-
-        allocations_with_eula_values = []
-        for allocation in list(allocation_choices_sorted):
-            if allocation.get_eula():
-                allocations_with_eula_values.append(allocation.get_eula())
-        context["allocations_with_eula_values"] = allocations_with_eula_values
-        context['allocations_with_eula'] = allocations_with_eula
-        context['allocations_with_eula_names'] = allocations_with_eula_names
-
         # The following block of code is used to hide/show the allocation div in the form.
         if project_obj.allocation_set.filter(status__name__in=['Active', 'New', 'Renewal Requested']).exists():
             div_allocation_class = 'placeholder_div_class'

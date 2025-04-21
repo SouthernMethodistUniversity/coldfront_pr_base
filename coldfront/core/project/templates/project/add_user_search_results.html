@@ -76,7 +76,6 @@
 </form>
 
 <script>
-  var allocations_with_eula = {{ allocations_with_eula | safe }};
   $("#selectAll").click(function () {
     $("input[name^='userform-']").prop('checked', $(this).prop('checked'));
   });
@@ -88,16 +87,14 @@
     }
   });
 
+  $("#id_allocationform-allocation_0").click(function () {
+    $("input[name^='allocationform-']").prop('checked', $(this).prop('checked'));
+  });
+
   $("input[name^='allocationform-']").click(function (ele) {
     var id = $(this).attr('id');
-    if (Object.keys(allocations_with_eula).includes(id) && ($(this).is(':checked')) == true) {
-      $("#modalEula"+id).show();
-      let eulaText = document.getElementById("eulaText"+id);
-      eulaText.innerHTML = allocations_with_eula[id];
-    }
-    else {
-      $("#modalEula"+id).hide();
-    }
+    if ( id != "id_allocationform-allocation_0") {
+      $("#id_allocationform-allocation_0").prop('checked', false);
   });
 </script>
 
