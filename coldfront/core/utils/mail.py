@@ -142,7 +142,7 @@ def send_allocation_eula_customer_email(allocation_user, subject, template_name,
     
     allocation_obj = allocation_user.allocation
     if not url_path:
-        url_path = reverse('allocation-detail', kwargs={'pk': allocation_obj.pk})
+        url_path = "{}/review-eula".format(reverse('allocation-detail', kwargs={'pk': allocation_obj.pk}))
 
     url = build_link(url_path, domain_url=domain_url)
     ctx = email_template_context()
