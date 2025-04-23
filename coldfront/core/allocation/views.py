@@ -61,7 +61,12 @@ from coldfront.core.project.models import (Project, ProjectUser, ProjectPermissi
                                            ProjectUserStatusChoice)
 from coldfront.core.resource.models import Resource
 from coldfront.core.utils.common import get_domain_url, import_from_settings
-from coldfront.core.utils.mail import build_link, send_allocation_admin_email, send_allocation_customer_email, send_email, send_email_template
+from coldfront.core.utils.mail import (build_link,
+                                       send_allocation_admin_email,
+                                       send_allocation_customer_email,
+                                       send_allocation_eula_customer_email,
+                                       send_email,
+                                       send_email_template)
 
 ALLOCATION_ENABLE_ALLOCATION_RENEWAL = import_from_settings(
     'ALLOCATION_ENABLE_ALLOCATION_RENEWAL', True)
@@ -81,6 +86,13 @@ ALLOCATION_ACCOUNT_ENABLED = import_from_settings(
     'ALLOCATION_ACCOUNT_ENABLED', False)
 ALLOCATION_ACCOUNT_MAPPING = import_from_settings(
     'ALLOCATION_ACCOUNT_MAPPING', {})
+
+EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT = import_from_settings(
+    'EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT', default=False)
+EMAIL_ALLOCATION_EULA_CONFIRMATIONS = import_from_settings(
+    'EMAIL_ALLOCATION_EULA_CONFIRMATIONS', default=False)
+EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS = import_from_settings(
+    'EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS', default=False)
 
 
 logger = logging.getLogger(__name__)
@@ -342,12 +354,26 @@ class AllocationEULAView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             if 'accepted_eula' in action:
                 allocation_user_obj.status = AllocationUserStatusChoice.objects.get(name='Active')
                 messages.success(self.request, "EULA Accepted!")
+                if EMAIL_ALLOCATION_EULA_CONFIRMATIONS:
+                    project_user = allocation_user_obj.allocation.project.projectuser_set.get(user=allocation_user_obj.user)
+                    if EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT or project_user.enable_notifications:
+                        send_allocation_eula_customer_email(allocation_user_obj, 
+                                                            "EULA accepted",  
+                                                            'email/allocation_eula_accepted.txt', 
+                                                            cc_managers=EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS)
                 if (allocation_obj.status == AllocationStatusChoice.objects.get(name='Active')):
                     allocation_activate_user.send(sender=self.__class__,
                                                 allocation_user_pk=allocation_user_obj.pk)
             elif action == 'declined_eula':
                 allocation_user_obj.status = AllocationUserStatusChoice.objects.get(name='DeclinedEULA')
                 messages.warning(self.request, "You did not agree to the EULA and were removed from the allocation. To access this allocation, your PI will have to re-add you.")
+                if EMAIL_ALLOCATION_EULA_CONFIRMATIONS:
+                    project_user = allocation_user_obj.allocation.project.projectuser_set.get(user=allocation_user_obj.user)
+                    if EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT or project_user.enable_notifications:
+                        send_allocation_eula_customer_email(allocation_user_obj, 
+                                                            "EULA declined",  
+                                                            'email/allocation_eula_declined.txt', 
+                                                            cc_managers=EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS)
             allocation_user_obj.save()
         
         return HttpResponseRedirect(reverse('allocation-review-eula', kwargs={'pk': pk}))
