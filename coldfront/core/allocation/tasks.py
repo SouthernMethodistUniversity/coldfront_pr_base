@@ -27,6 +27,8 @@ EMAIL_ALLOCATION_EXPIRING_NOTIFICATION_DAYS = import_from_settings(
 EMAIL_ADMINS_ON_ALLOCATION_EXPIRE = import_from_settings('EMAIL_ADMINS_ON_ALLOCATION_EXPIRE')
 EMAIL_ADMIN_LIST = import_from_settings('EMAIL_ADMIN_LIST')
 
+EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT = import_from_settings('EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT')
+
 def update_statuses():
 
     expired_status_choice = AllocationStatusChoice.objects.get(
@@ -45,8 +47,10 @@ def send_eula_reminders():
         if allocation.get_eula():
             email_receiver_list = []
             for allocation_user in allocation.allocationuser_set.all():
-                if allocation_user.status == AllocationUserStatusChoice.objects.get(name='PendingEULA'):
-                    if allocation_user.user.email not in email_receiver_list:
+                projectuser = allocation.project.projectuser_set.get(user=allocation_user.user)
+                if allocation_user.status == AllocationUserStatusChoice.objects.get(name='PendingEULA') and projectuser.status.name == 'Active':
+                    should_send = (projectuser.enable_notifications) or (EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT)
+                    if should_send and allocation_user.user.email not in email_receiver_list:
                         email_receiver_list.append(allocation_user.user.email)
 
             template_context = {
