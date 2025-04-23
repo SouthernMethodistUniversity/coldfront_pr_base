@@ -100,6 +100,7 @@ The following settings are ColdFront specific settings related to the core appli
 | RESEARCH_OUTPUT_ENABLE                 | Enable or disable research outputs. Default True |
 | GRANT_ENABLE                           | Enable or disable grants. Default True           |
 | PUBLICATION_ENABLE                     | Enable or disable publications. Default True     |
+| ALLOCATION_EULA_ENABLE                 | Enable or disable requiring users to agree to EULA on allocations. Only applies to allocations using a resource with a defined 'eula' attribute. Default False|
 
 
 ### Database settings
@@ -143,6 +144,10 @@ disabled:
 | EMAIL_SIGNATURE                 | Email signature to add to outgoing emails |
 | EMAIL_ALLOCATION_EXPIRING_NOTIFICATION_DAYS   | List of days to send email notifications for expiring allocations. Default 7,14,30 |
 | EMAIL_ADMINS_ON_ALLOCATION_EXPIRE | Setting this to True will send a daily email notification to administrators with a list of allocations that have expired that day. |
+| EMAIL_ALLOCATION_EULA_REMINDERS | Enable/Disable EULA reminders. Default False |
+| EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT | Ignore user email settings and always send EULA related emails. Default False |
+| EMAIL_ALLOCATION_EULA_CONFIRMATIONS | Enable/Disable email notifications when a EULA is accepted or declined. Default False |
+| EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS | CC project managers on eula notification emails (requires EMAIL_ALLOCATION_EULA_CONFIRMATIONS to be enabled). Default False |
 
 ### Plugin settings
 For more info on [ColdFront plugins](plugin/existing_plugins.md) (Django apps)
