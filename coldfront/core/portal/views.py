@@ -38,8 +38,15 @@ def home(request):
             Q(allocationuser__user=request.user) &
             Q(allocationuser__status__name__in=['Active', 'PendingEULA'])
         ).distinct().order_by('-created')[:5]
+        
+        user_status = []                
+        for allocation in allocation_list:
+            if allocation.allocationuser_set.filter(user=request.user).exists():
+                user_status.append(allocation.allocationuser_set.get(user=request.user).status.name)
+                
         context['project_list'] = project_list
         context['allocation_list'] = allocation_list
+        context['user_status'] = user_status
         try:
             context['ondemand_url'] = settings.ONDEMAND_URL
         except AttributeError:
