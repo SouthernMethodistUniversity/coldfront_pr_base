@@ -16,6 +16,9 @@ from coldfront.core.portal.utils import (generate_allocations_chart_data,
 from coldfront.core.project.models import Project
 from coldfront.core.publication.models import Publication
 from coldfront.core.research_output.models import ResearchOutput
+from coldfront.core.utils.common import import_from_settings
+
+ALLOCATION_EULA_ENABLE = import_from_settings('ALLOCATION_EULA_ENABLE', False)
 
 
 def home(request):
@@ -39,14 +42,17 @@ def home(request):
             Q(allocationuser__status__name__in=['Active', 'PendingEULA'])
         ).distinct().order_by('-created')[:5]
         
-        user_status = []                
-        for allocation in allocation_list:
-            if allocation.allocationuser_set.filter(user=request.user).exists():
-                user_status.append(allocation.allocationuser_set.get(user=request.user).status.name)
+        
+        if ALLOCATION_EULA_ENABLE:
+            user_status = []                
+            for allocation in allocation_list:
+                if allocation.allocationuser_set.filter(user=request.user).exists():
+                    user_status.append(allocation.allocationuser_set.get(user=request.user).status.name)
+            context['user_status'] = user_status
                 
         context['project_list'] = project_list
         context['allocation_list'] = allocation_list
-        context['user_status'] = user_status
+        
         try:
             context['ondemand_url'] = settings.ONDEMAND_URL
         except AttributeError:
