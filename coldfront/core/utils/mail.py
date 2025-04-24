@@ -60,7 +60,7 @@ def send_email(subject, body, sender, receiver_list, cc=[]):
                      sender, ','.join(receiver_list), subject)
 
 
-def send_email_template(subject, template_name, template_context, sender, receiver_list):
+def send_email_template(subject, template_name, template_context, sender, receiver_list, cc = []):
     """Helper function for sending emails from a template
     """
     if not EMAIL_ENABLED:
@@ -68,7 +68,7 @@ def send_email_template(subject, template_name, template_context, sender, receiv
 
     body = render_to_string(template_name, template_context)
 
-    return send_email(subject, body, sender, receiver_list)
+    return send_email(subject, body, sender, receiver_list, cc = cc)
 
 def email_template_context():
     """Basic email template context used as base for all templates
