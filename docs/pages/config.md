@@ -148,6 +148,7 @@ disabled:
 | EMAIL_ALLOCATION_EULA_IGNORE_OPT_OUT | Ignore user email settings and always send EULA related emails. Default False |
 | EMAIL_ALLOCATION_EULA_CONFIRMATIONS | Enable/Disable email notifications when a EULA is accepted or declined. Default False |
 | EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS | CC project managers on eula notification emails (requires EMAIL_ALLOCATION_EULA_CONFIRMATIONS to be enabled). Default False |
+| EMAIL_ALLOCATION_EULA_INCLUDE_ACCEPTED_EULA | Include copy of EULA in email notifications for accepted EULAs. Default False |
 
 ### Plugin settings
 For more info on [ColdFront plugins](plugin/existing_plugins.md) (Django apps)

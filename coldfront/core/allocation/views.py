@@ -93,7 +93,8 @@ EMAIL_ALLOCATION_EULA_CONFIRMATIONS = import_from_settings(
     'EMAIL_ALLOCATION_EULA_CONFIRMATIONS',False)
 EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS = import_from_settings(
     'EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS',False)
-
+EMAIL_ALLOCATION_EULA_INCLUDE_ACCEPTED_EULA = import_from_settings(
+    'EMAIL_ALLOCATION_EULA_INCLUDE_ACCEPTED_EULA',False)
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +361,8 @@ class AllocationEULAView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                         send_allocation_eula_customer_email(allocation_user_obj, 
                                                             "EULA accepted",  
                                                             'email/allocation_eula_accepted.txt', 
-                                                            cc_managers=EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS)
+                                                            cc_managers=EMAIL_ALLOCATION_EULA_CONFIRMATIONS_CC_MANAGERS,
+                                                            include_eula=EMAIL_ALLOCATION_EULA_INCLUDE_ACCEPTED_EULA)
                 if (allocation_obj.status == AllocationStatusChoice.objects.get(name='Active')):
                     allocation_activate_user.send(sender=self.__class__,
                                                 allocation_user_pk=allocation_user_obj.pk)
