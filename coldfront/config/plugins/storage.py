@@ -1,0 +1,12 @@
+from coldfront.config.base import INSTALLED_APPS
+from coldfront.config.env import ENV
+
+INSTALLED_APPS += [
+    'coldfront.plugins.storage',
+]
+
+STORAGE_STAGING_QUEUE_PATH = ENV.str('STORAGE_STAGING_QUEUE_PATH', default='')
+STORAGE_STAGING_RUNNING_PATH = ENV.str('STORAGE_STAGING_RUNNING_PATH', default='')
+STORAGE_STAGING_COMPLETED_PATH = ENV.str('STORAGE_STAGING_COMPLETED_PATH', default='')
+STORAGE_STAGING_ARCHIVE_PATH = ENV.str('STORAGE_STAGING_ARCHIVE_PATH', default='')
+STORAGE_LFS_COMMAND = ENV.str('STORAGE_LFS_COMMAND', default='')

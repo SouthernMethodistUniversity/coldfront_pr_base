@@ -6,12 +6,13 @@ from django import forms
 from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
 
-from coldfront.core.allocation.models import (
-    AllocationAccount,
-    AllocationAttribute,
-    AllocationAttributeType,
-    AllocationStatusChoice,
-)
+from coldfront.core.allocation.models import (Allocation, 
+                                              AllocationAccount,
+                                              AllocationAttributeType,
+                                              AllocationAttribute,
+                                              AllocationStatusChoice,
+                                              AllocationUserStorageStatusChoice,
+                                              AllocationUserStoragePermissionChoice)
 from coldfront.core.allocation.utils import get_user_resources
 from coldfront.core.project.models import Project
 from coldfront.core.resource.models import Resource, ResourceType
@@ -23,50 +24,63 @@ ALLOCATION_CHANGE_REQUEST_EXTENSION_DAYS = import_from_settings("ALLOCATION_CHAN
 
 class AllocationForm(forms.Form):
     resource = forms.ModelChoiceField(queryset=None, empty_label=None)
+    description = forms.CharField(required=False,
+                                  max_length=512,
+                                  help_text="""Enter a short description to describe this allocation.
+                                            This is only used for display purposes to make allocations easier
+                                            to identify.
+                                            """,
+                                  label="Short description"
+                                  )
+    folder_name = forms.CharField(required=False,
+                                  max_length=64,
+                                  validators=[
+                                     RegexValidator(r'^[0-9a-zA-Z_-]*$', 'Only alphanumeric characters, underscores, and dashes are allowed.')
+                                  ],
+                                  help_text="Enter a folder name for your storage allocation"
+                                  )
     justification = forms.CharField(widget=forms.Textarea)
+    start_date = forms.DateField(
+        label='Start Date',
+        widget=forms.DateInput(attrs={'class': 'datepicker'}),
+        required=True)
+    end_date = forms.DateField(
+        label='End Date',
+        widget=forms.DateInput(attrs={'class': 'datepicker'}),
+        required=True)
+    cpu_hours = forms.IntegerField(required=True)
+    gpu_hours = forms.IntegerField(required=True)
+    memory_hours = forms.IntegerField(required=True)
     quantity = forms.IntegerField(required=True)
-    users = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, required=False)
+    storage_capacity = forms.IntegerField(required=True)
+    storage_filecount = forms.IntegerField(required=True)
     allocation_account = forms.ChoiceField(required=False)
 
-    def __init__(self, request_user, project_pk, *args, **kwargs):
+    def __init__(self, request_user, project_pk,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         project_obj = get_object_or_404(Project, pk=project_pk)
-        self.fields["resource"].queryset = get_user_resources(request_user).order_by(Lower("name"))
-        self.fields["quantity"].initial = 1
-        user_query_set = (
-            project_obj.projectuser_set.select_related("user")
-            .filter(
-                status__name__in=[
-                    "Active",
-                ]
-            )
-            .order_by("user__username")
-        )
-        user_query_set = user_query_set.exclude(user=project_obj.pi)
-        if user_query_set:
-            self.fields["users"].choices = (
-                (user.user.username, "%s %s (%s)" % (user.user.first_name, user.user.last_name, user.user.username))
-                for user in user_query_set
-            )
-            self.fields["users"].help_text = "<br/>Select users in your project to add to this allocation."
-        else:
-            self.fields["users"].widget = forms.HiddenInput()
+        self.fields['resource'].queryset = get_user_resources(request_user).order_by(Lower("name"))
+
+        self.fields['cpu_hours'].initial = 0
+        self.fields['gpu_hours'].initial = 0
+        self.fields['memory_hours'].initial = 0
+        self.fields['storage_capacity'].initial = 0
+        self.fields['storage_filecount'].initial = 0
+
+        self.fields['quantity'].initial = 1
 
         if ALLOCATION_ACCOUNT_ENABLED:
-            allocation_accounts = AllocationAccount.objects.filter(user=request_user)
+            allocation_accounts = AllocationAccount.objects.filter(
+                user=request_user)
             if allocation_accounts:
-                self.fields["allocation_account"].choices = (
-                    ((account.name, account.name)) for account in allocation_accounts
-                )
+                self.fields['allocation_account'].choices = (((account.name, account.name))
+                                                             for account in allocation_accounts)
 
-            self.fields[
-                "allocation_account"
-            ].help_text = '<br/>Select account name to associate with resource. <a href="#Modal" id="modal_link">Click here to create an account name!</a>'
+            self.fields['allocation_account'].help_text = '<br/>Select account name to associate with resource. <a href="#Modal" id="modal_link">Click here to create an account name!</a>'
         else:
-            self.fields["allocation_account"].widget = forms.HiddenInput()
+            self.fields['allocation_account'].widget = forms.HiddenInput()
 
-        self.fields["justification"].help_text = "<br/>Justification for requesting this allocation."
-
+        self.fields['justification'].help_text = '<br/>Justification for requesting this allocation.'
 
 class AllocationUpdateForm(forms.Form):
     status = forms.ModelChoiceField(
@@ -104,6 +118,71 @@ class AllocationAddUserForm(forms.Form):
     last_name = forms.CharField(max_length=150, required=False, disabled=True)
     email = forms.EmailField(max_length=100, required=False, disabled=True)
     selected = forms.BooleanField(initial=False, required=False)
+    permissions = forms.ModelChoiceField(
+        queryset=AllocationUserStoragePermissionChoice.objects.filter(~Q(name='None')), empty_label=None, required=False)
+    
+    def __init__(self, *args, **kwargs):
+        init_username = None
+        init_employeeType = None
+        init_email = None
+        has_email = False
+        try:
+            if 'initial' in kwargs:
+                initial = kwargs.pop('initial')
+                init_username = str(initial.pop('username')).strip()
+                if 'email' in initial:
+                    init_email = str(initial.pop('email')).strip()
+                    if '@' in init_email:
+                        has_email = True
+                    
+                kwargs['initial'] = initial
+        except Exception as e:
+            init_username = None
+
+        disabledUser = False
+        if init_username:
+            try:
+                eligible = has_email
+                if get_user_model().objects.filter(username=init_username).exists():
+                    userprofile = UserProfile.objects.get(user__username=init_username)
+                    
+                    for resource in get_user_resources(userprofile.user):
+                        if resource.get_attribute('HasAccounts'):
+                            user_sys_status, _ = UserSystemStatus.objects.get_or_create(user=userprofile.user, resource=resource)
+
+                            if not (user_sys_status.system_eligibility.name == "Eligible" or user_sys_status.system_eligibility.name == "No Allocations"):
+                                eligible = False
+                                break
+                else:
+                    try:
+                        if 'initial' in kwargs:
+                            initial = kwargs.pop('initial')
+                            init_employeeType=str(initial.pop('employeeType')).strip()
+                            if SMU_EXT:
+                                classification = checkResourceClassification(init_employeeType)
+                                if classification == 'NA':
+                                    eligible = False
+                            kwargs['initial'] = initial
+                    except Exception as e2:
+                        logger.debug('failed to check classification: {}'.format(e))
+
+                if not eligible:
+                    init_username = init_username + ' (not HPC eligible)'
+                    disabledUser = True
+            except Exception as e:
+                if 'UserProfile matching query does not exist' not in str(e):
+                    logger.error("failed to check userprofile for {} with error {}".format(init_username, e))
+        
+        if init_username:
+            self.declared_fields['username'].initial = init_username
+        if init_email:
+            self.declared_fields['email'].initial = init_email
+        super(AllocationAddUserForm, self).__init__(*args, **kwargs)
+        if disabledUser:
+            self.fields['selected'].required = False
+            self.fields['selected'].widget.attrs['disabled'] = 'disabled'
+            self.fields['permissions'].required = False
+            self.fields['permissions'].widget.attrs['disabled'] = 'disabled'
 
 
 class AllocationRemoveUserForm(forms.Form):
@@ -269,3 +348,10 @@ class AllocationAttributeCreateForm(forms.ModelForm):
         self.fields["allocation_attribute_type"].queryset = self.fields["allocation_attribute_type"].queryset.order_by(
             Lower("name")
         )
+
+class AllocationPermissionChangeForm(forms.Form):
+    username = forms.CharField(max_length=150, disabled=True)
+    first_name = forms.CharField(max_length=150, required=False, disabled=True)
+    last_name = forms.CharField(max_length=150, required=False, disabled=True)
+    permissions = forms.ModelChoiceField(
+        queryset=AllocationUserStoragePermissionChoice.objects.filter(~Q(name='None')), empty_label=None)

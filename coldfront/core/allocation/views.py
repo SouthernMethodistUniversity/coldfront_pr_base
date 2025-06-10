@@ -8,10 +8,12 @@ from datetime import date
 
 from dateutil.relativedelta import relativedelta
 from django import forms
+from django.db import IntegrityError
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db import IntegrityError
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.forms import formset_factory
@@ -590,66 +592,92 @@ class AllocationListView(LoginRequiredMixin, ListView):
 
         return context
 
-
 class AllocationCreateView(LoginRequiredMixin, UserPassesTestMixin, FormView):
     form_class = AllocationForm
-    template_name = "allocation/allocation_create.html"
+    template_name = 'allocation/allocation_create.html'
 
     def test_func(self):
-        """UserPassesTestMixin Tests"""
-        project_obj = get_object_or_404(Project, pk=self.kwargs.get("project_pk"))
+        """ UserPassesTestMixin Tests"""
+        project_obj = get_object_or_404(Project, pk=self.kwargs.get('project_pk'))
         if project_obj.has_perm(self.request.user, ProjectPermission.UPDATE):
             return True
 
-        messages.error(self.request, "You do not have permission to create a new allocation.")
+        messages.error(self.request, 'You do not have permission to create a new allocation.')
         return False
 
     def dispatch(self, request, *args, **kwargs):
-        project_obj = get_object_or_404(Project, pk=self.kwargs.get("project_pk"))
+        project_obj = get_object_or_404(Project, pk=self.kwargs.get('project_pk'))
 
         if project_obj.needs_review:
-            messages.error(
-                request, "You cannot request a new allocation because you have to review your project first."
-            )
-            return HttpResponseRedirect(reverse("project-detail", kwargs={"pk": project_obj.pk}))
+            messages.error(request, 'You cannot request a new allocation because you have to review your project first.')
+            return HttpResponseRedirect(reverse('project-detail', kwargs={'pk': project_obj.pk}))
 
-        if project_obj.status.name not in [
-            "Active",
-            "New",
-        ]:
-            messages.error(request, "You cannot request a new allocation to an archived project.")
-            return HttpResponseRedirect(reverse("project-detail", kwargs={"pk": project_obj.pk}))
+        if project_obj.status.name not in ['Active', 'New', ]:
+            messages.error(request, 'You cannot request a new allocation to an archived project.')
+            return HttpResponseRedirect(reverse('project-detail', kwargs={'pk': project_obj.pk}))
 
         return super().dispatch(request, *args, **kwargs)
+    
+    def get_users_to_add(self, project):
+        missing_users = list(project.projectuser_set.filter(
+            status__name='Active').values_list('user__username', flat=True))
+       
+        missing_users = get_user_model().objects.filter(username__in=missing_users).exclude(
+            pk=project.pi.pk)
+
+        users_to_add = [
+
+            {'username': user.username,
+             'first_name': user.first_name,
+             'last_name': user.last_name,
+             'email': user.email, }
+
+            for user in missing_users
+        ]
+
+        return users_to_add
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        project_obj = get_object_or_404(Project, pk=self.kwargs.get("project_pk"))
-        context["project"] = project_obj
+        project_obj = get_object_or_404(
+            Project, pk=self.kwargs.get('project_pk'))
+        context['project'] = project_obj
 
         user_resources = get_user_resources(self.request.user)
         resources_form_default_quantities = {}
         resources_form_label_texts = {}
         resources_with_eula = {}
-        attr_names = ("quantity_default_value", "quantity_label", "eula")
+        attr_names = ('quantity_default_value', 'quantity_label', 'eula')
         for resource in user_resources:
             for attr_name in attr_names:
                 query = Q(resource_attribute_type__name=attr_name)
                 if resource.resourceattribute_set.filter(query).exists():
                     value = resource.resourceattribute_set.get(query).value
-                    if attr_name == "quantity_default_value":
+                    if attr_name == 'quantity_default_value':
                         resources_form_default_quantities[resource.id] = int(value)
-                    if attr_name == "quantity_label":
-                        resources_form_label_texts[resource.id] = mark_safe(f"<strong>{value}*</strong>")
-                    if attr_name == "eula":
+                    if attr_name == 'quantity_label':
+                        resources_form_label_texts[resource.id] = mark_safe(f'<strong>{value}*</strong>')
+                    if attr_name == 'eula':
                         resources_with_eula[resource.id] = value
 
-        context["resources_form_default_quantities"] = resources_form_default_quantities
-        context["resources_form_label_texts"] = resources_form_label_texts
-        context["resources_with_eula"] = resources_with_eula
-        context["resources_with_accounts"] = list(
-            Resource.objects.filter(name__in=list(ALLOCATION_ACCOUNT_MAPPING.keys())).values_list("id", flat=True)
-        )
+        # make a generic dictionary of form fields
+        resource_form_fields = get_user_resource_form_fields(self.request.user)
+        resource_is_storage = get_user_storage_resources(self.request.user)
+        users_to_add = self.get_users_to_add(project_obj)
+
+        if users_to_add:
+            formset = formset_factory(
+                AllocationAddUserForm, max_num=len(users_to_add))
+            formset = formset(initial=users_to_add, prefix='userform')
+            context['formset'] = formset
+
+        context['resource_is_storage'] = resource_is_storage
+        context['resources_form_default_quantities'] = resources_form_default_quantities
+        context['resources_form_label_texts'] = resources_form_label_texts
+        context['resources_with_eula'] = resources_with_eula
+        context['resources_with_accounts'] = list(Resource.objects.filter(
+            name__in=list(ALLOCATION_ACCOUNT_MAPPING.keys())).values_list('id', flat=True))
+        context['resource_form_fields'] = resource_form_fields
 
         return context
 
@@ -657,105 +685,231 @@ class AllocationCreateView(LoginRequiredMixin, UserPassesTestMixin, FormView):
         """Return an instance of the form to be used in this view."""
         if form_class is None:
             form_class = self.get_form_class()
-        return form_class(self.request.user, self.kwargs.get("project_pk"), **self.get_form_kwargs())
+        form = form_class(self.request.user, self.kwargs.get('project_pk'), **self.get_form_kwargs())
+        project_obj = get_object_or_404(Project, pk=self.kwargs.get('project_pk'))
+
+        pi_username = project_obj.pi.username.lower()
+        descriptor = project_obj.short_descriptor
+        directory_example = '/projects/' + pi_username + '/' + descriptor + '/' + 'folder_name'
+        help_text = "The full path of the allocation directory will be"
+        help_text_ul = "<ul>"
+        help_text_directory = "<li><strong>storage directory</strong>: " + directory_example + " </li>"
+        help_text_end_ul = "</ul>"        
+        form.fields['folder_name'].help_text = mark_safe(help_text +
+                                                              help_text_ul +
+                                                              help_text_directory +
+                                                              help_text_end_ul)
+        return form
 
     def form_valid(self, form):
         form_data = form.cleaned_data
-        project_obj = get_object_or_404(Project, pk=self.kwargs.get("project_pk"))
-        resource_obj = form_data.get("resource")
-        justification = form_data.get("justification")
-        quantity = form_data.get("quantity", 1)
-        allocation_account = form_data.get("allocation_account", None)
+        project_obj = get_object_or_404(
+            Project, pk=self.kwargs.get('project_pk'))
+        resource_obj = form_data.get('resource')
+        justification = form_data.get('justification')
+        quantity = form_data.get('quantity', 1)
+        allocation_account = form_data.get('allocation_account', None)
+        allocation_end_date = form_data.get('end_date')
+        allocation_start_date = form_data.get('start_date')
+        short_description = form_data.get('description').strip()
+        allocation_folder = form_data.get('folder_name').strip()
+        allocation_cpu_hours = form_data.get('cpu_hours', 0)
+        allocation_gpu_hours = form_data.get('gpu_hours', 0)
+        allocation_memory_hours = form_data.get('memory_hours', 0)
+        allocation_storage_capacity = form_data.get('storage_capacity', 0)
+        allocation_storage_filecount = form_data.get('storage_filecount', 0)
+
+        # set memory to 4 * cpu if 0
+        if allocation_memory_hours == 0:
+            allocation_memory_hours = 4*allocation_cpu_hours
+
+        if (resource_obj.resource_type.name == "Cluster"):
+            # set storage to 0
+            allocation_storage_capacity = 0
+            allocation_storage_filecount = 0
+            n_project_allocations = project_obj.allocation_set.filter(
+                    resources__resource_type__name='Cluster').count() + 1
+            # just a fake folder so we can make sure everyhting is unique more
+            # easily
+            allocation_folder = 'vvvvvv' + str(n_project_allocations).zfill(4)
+        if (resource_obj.resource_type.name == "Storage"):
+            # set compute properties to 0
+            allocation_cpu_hours = 0
+            allocation_gpu_hours = 0
+            allocation_memory_hours = 0
+            n_storage_allocations = project_obj.allocation_set.filter(
+                    resources__resource_type__name='Storage').count() + 1
+            if not allocation_folder:
+                allocation_folder = 'allocation' + str(n_storage_allocations).zfill(3)
+
         # A resource is selected that requires an account name selection but user has no account names
-        if (
-            ALLOCATION_ACCOUNT_ENABLED
-            and resource_obj.name in ALLOCATION_ACCOUNT_MAPPING
-            and AllocationAttributeType.objects.filter(name=ALLOCATION_ACCOUNT_MAPPING[resource_obj.name]).exists()
-            and not allocation_account
-        ):
-            form.add_error(
-                None,
-                format_html(
-                    'You need to create an account name. Create it by clicking the link under the "Allocation account" field.'
-                ),
-            )
+        if ALLOCATION_ACCOUNT_ENABLED and resource_obj.name in ALLOCATION_ACCOUNT_MAPPING and AllocationAttributeType.objects.filter(
+                name=ALLOCATION_ACCOUNT_MAPPING[resource_obj.name]).exists() and not allocation_account:
+            form.add_error(None, format_html(
+                'You need to create an account name. Create it by clicking the link under the "Allocation account" field.'))
             return self.form_invalid(form)
 
-        allocation_limit_objs = resource_obj.resourceattribute_set.filter(
-            resource_attribute_type__name="allocation_limit"
-        ).first()
-        if allocation_limit_objs:
-            allocation_limit = int(allocation_limit_objs.value)
-            allocation_count = project_obj.allocation_set.filter(
-                resources=resource_obj,
-                status__name__in=["Active", "New", "Renewal Requested", "Paid", "Payment Pending", "Payment Requested"],
-            ).count()
-            if allocation_count >= allocation_limit:
-                form.add_error(None, format_html("Your project is at the allocation limit allowed for this resource."))
-                return self.form_invalid(form)
+        users_to_add = self.get_users_to_add(project_obj)
+        formset = formset_factory(
+            AllocationAddUserForm, max_num=len(users_to_add))
+        formset = formset(self.request.POST, initial=users_to_add,
+                          prefix='userform')
+        
+        user_list = []
+        pi_included = False
+        requestor_included = False
+        if formset.is_valid():
+            for form in formset:
+                user_form_data = form.cleaned_data
+                if user_form_data['selected']:
 
-        usernames = form_data.get("users")
-        usernames.append(project_obj.pi.username)
-        usernames = list(set(usernames))
+                    current_user = user_form_data.get('username')
+                    if resource_obj.resource_type.name == "Storage":
 
-        users = [get_user_model().objects.get(username=username) for username in usernames]
-        if project_obj.pi not in users:
-            users.append(project_obj.pi)
+                        # PI / requestor always have rw
+                        if (current_user == project_obj.pi.username) or (current_user == self.request.user.username):
+                            permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='Read and Write')
+                        else:
+                            permission_choice = user_form_data.get('permissions')
+                        permission_status = AllocationUserStorageStatusChoice.objects.get(name='New')
+                    else:
+                        permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='None')
+                        permission_status = AllocationUserStorageStatusChoice.objects.get(name='None')
+                    tmp_user = [current_user, permission_status, permission_choice]
+                    user_list.append(tmp_user)
+
+                    if current_user == project_obj.pi.username:
+                        pi_included = True
+                    if current_user == self.request.user.username:
+                        requestor_included = True
+ 
+        # make sure PI always has permissions
+        if not pi_included:
+            if resource_obj.resource_type.name == "Storage":
+                permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='Read and Write')
+                permission_status = AllocationUserStorageStatusChoice.objects.get(name='New')
+            else:
+                permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='None')
+                permission_status = AllocationUserStorageStatusChoice.objects.get(name='None')
+            tmp_user = [project_obj.pi.username, permission_status, permission_choice]
+            user_list.append(tmp_user)
+
+        # make sure the requestor has permissions
+        if (not requestor_included) and (project_obj.pi.username != self.request.user.username):
+            if resource_obj.resource_type.name == "Storage":
+                permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='Read and Write')
+                permission_status = AllocationUserStorageStatusChoice.objects.get(name='New')
+            else:
+                permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='None')
+                permission_status = AllocationUserStorageStatusChoice.objects.get(name='None')
+            tmp_user = [self.request.user.username, permission_status, permission_choice]
+            user_list.append(tmp_user)
+
+        # defaults
+        if resource_obj.resource_type.name == "Storage":
+            permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='Read and Write')
+            permission_status = AllocationUserStorageStatusChoice.objects.get(name='New')
+        else:
+            permission_choice = AllocationUserStoragePermissionChoice.objects.get(name='None')
+            permission_status = AllocationUserStorageStatusChoice.objects.get(name='None')        
 
         if INVOICE_ENABLED and resource_obj.requires_payment:
-            allocation_status_obj = AllocationStatusChoice.objects.get(name=INVOICE_DEFAULT_STATUS)
+            allocation_status_obj = AllocationStatusChoice.objects.get(
+                name=INVOICE_DEFAULT_STATUS)
         else:
-            allocation_status_obj = AllocationStatusChoice.objects.get(name="New")
+            allocation_status_obj = AllocationStatusChoice.objects.get(
+                name='New')
 
-        allocation_obj = Allocation.objects.create(
-            project=project_obj, justification=justification, quantity=quantity, status=allocation_status_obj
-        )
+        try:
+            allocation_obj = Allocation.objects.create(
+                project=project_obj,
+                justification=justification,
+                quantity=quantity,
+                status=allocation_status_obj,
+                start_date=allocation_start_date,
+                end_date=allocation_end_date,
+                folder_name=allocation_folder,
+                description=short_description
+            )
+        except IntegrityError as e:
+            if 'UNIQUE constraint failed' in str(e):
+                if 'allocation_allocation.folder_name' in str(e):
+                    messages.error(self.request, 'Folder name \"' + allocation_folder + '\" already exists in this project!')
+                    form._errors["folder_name"] = ["Please enter a new folder name for your allocation"]
+            else:
+                messages.error(self.request, 'Unknown error')
+            return super().form_invalid(form)
 
         if ALLOCATION_ENABLE_CHANGE_REQUESTS_BY_DEFAULT:
             allocation_obj.is_changeable = True
             allocation_obj.save()
-
+            
         allocation_obj.resources.add(resource_obj)
 
         if ALLOCATION_ACCOUNT_ENABLED and allocation_account and resource_obj.name in ALLOCATION_ACCOUNT_MAPPING:
+
             allocation_attribute_type_obj = AllocationAttributeType.objects.get(
-                name=ALLOCATION_ACCOUNT_MAPPING[resource_obj.name]
-            )
+                name=ALLOCATION_ACCOUNT_MAPPING[resource_obj.name])
             AllocationAttribute.objects.create(
                 allocation_attribute_type=allocation_attribute_type_obj,
                 allocation=allocation_obj,
-                value=allocation_account,
+                value=allocation_account
             )
 
-        for linked_resource in resource_obj.linked_resources.all():
-            allocation_obj.resources.add(linked_resource)
+        # set default attributes
+        parse_allocation_attributes(allocation_obj, 
+                                    resource_obj,
+                                    project_obj, 
+                                    allocation_cpu_hours,
+                                    allocation_gpu_hours, 
+                                    allocation_memory_hours,
+                                    allocation_storage_capacity,
+                                    allocation_storage_filecount)
 
-        allocation_user_active_status = AllocationUserStatusChoice.objects.get(name="Active")
-        if ALLOCATION_EULA_ENABLE:
-            allocation_user_pending_status = AllocationUserStatusChoice.objects.get(name="PendingEULA")
-        for user in users:
-            if ALLOCATION_EULA_ENABLE and not (user == self.request.user):
-                AllocationUser.objects.create(
-                    allocation=allocation_obj, user=user, status=allocation_user_pending_status
-                )
+        for linked_resource in resource_obj.linked_resources.all():
+            allocation_obj.resources.add(linked_resource)        
+
+        allocation_user_active_status = AllocationUserStatusChoice.objects.get(
+            name='Active')
+        if EULA_AGREEMENT:
+            allocation_user_pending_status = AllocationUserStatusChoice.objects.get(
+            name='PendingEULA')
+
+        if (resource_obj.resource_type.name == "Storage"):
+            allocation_user_storage_status = AllocationUserStorageStatusChoice.objects.get(name="New")
+        for cur_user in user_list:
+
+            user = get_user_model().objects.get(username=cur_user[0])
+            allocation_user_storage_status = cur_user[1]
+            allocation_user_storage_permissions = cur_user[2]
+            if EULA_AGREEMENT and not (user == self.request.user or user.username == project_obj.pi.username):
+                temp_allocation_user = AllocationUser.objects.create(allocation=allocation_obj,
+                                              user=user,
+                                              status=allocation_user_pending_status,
+                                              storage_status=allocation_user_storage_status,
+                                              storage_permissions=allocation_user_storage_permissions)
             else:
-                AllocationUser.objects.create(
-                    allocation=allocation_obj, user=user, status=allocation_user_active_status
-                )
+                temp_allocation_user = AllocationUser.objects.create(allocation=allocation_obj, 
+                                              user=user,
+                                              status=allocation_user_active_status,
+                                              storage_status=allocation_user_storage_status,
+                                              storage_permissions=allocation_user_storage_permissions)
 
         send_allocation_admin_email(
             allocation_obj,
-            "New Allocation Request",
-            "email/new_allocation_request.txt",
-            domain_url=get_domain_url(self.request),
+            'New Allocation Request',
+            'email/new_allocation_request.txt',
+            domain_url=get_domain_url(self.request)
         )
-        allocation_new.send(sender=self.__class__, allocation_pk=allocation_obj.pk)
+        allocation_new.send(sender=self.__class__,
+                            allocation_pk=allocation_obj.pk)
         return super().form_valid(form)
 
     def get_success_url(self):
-        msg = "Allocation requested. It will be available once it is approved."
+        msg = 'Allocation requested. It will be available once it is approved.'
         messages.success(self.request, msg)
-        return reverse("project-detail", kwargs={"pk": self.kwargs.get("project_pk")})
+        return reverse('project-detail', kwargs={'pk': self.kwargs.get('project_pk')})
+
 
 
 class AllocationAddUsersView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):

@@ -368,23 +368,92 @@ class AllocationAdminNote(TimeStampedModel):
         return self.note
 
 
-class AllocationUserNote(TimeStampedModel):
-    """An allocation user note is a note that an user makes on an allocation.
-
+class AllocationUserStorageStatusChoice(TimeStampedModel):
+    """ An allocation user storage status choice indicates the status of a storage allocation for an user. 
+        Examples include: Provisioned, Pending
+    
     Attributes:
-        allocation (Allocation): links the allocation to the note
-        author (User): represents the User class of the user who authored the note
-        is_private (bool): indicates whether or not the note is private
-        note (str): text input from the user containing the note
+        name (str): name of the allocation user storage status choice
+    """
+    class Meta:
+        ordering = ['name', ]
+
+    @classmethod
+    def get_default_id(cls):
+        storage_status_choice, created = cls.objects.get_or_create(
+            name='None')
+        return storage_status_choice.pk
+
+    class AllocationUserStorageStatusChoiceManager(models.Manager):
+        def get_by_natural_key(self, name):
+            return self.get(name=name)
+
+    name = models.CharField(max_length=64)
+    objects = AllocationUserStorageStatusChoiceManager()
+
+    def __str__(self):
+        return self.name
+
+    def natural_key(self):
+        return (self.name,)
+
+class AllocationUserStoragePermissionChoice(TimeStampedModel):
+    """ An allocation user storage permission choice indicates the permissions an user should have on an allocation. 
+        Examples include: Read Only, Read and Write, None
+    
+    Attributes:
+        name (str): name of the allocation user storage permission choice
+    """
+    class Meta:
+        ordering = ['name', ]
+
+    @classmethod
+    def get_default_id(cls):
+        storage_permission_choice, created = cls.objects.get_or_create(
+            name='None')
+        return storage_permission_choice.pk
+
+    class AllocationUserStoragePermissionChoiceManager(models.Manager):
+        def get_by_natural_key(self, name):
+            return self.get(name=name)
+
+    name = models.CharField(max_length=64)
+    objects = AllocationUserStoragePermissionChoiceManager()
+
+    def __str__(self):
+        return self.name
+
+    def natural_key(self):
+        return (self.name,)
+
+
+class AllocationUser(TimeStampedModel):
+    """ An allocation user represents a user on the allocation.
+    
+    Attributes:
+        allocation (Allocation): links user to its allocation
+        user (User): represents the User object of the allocation user
+        status (ProjectUserStatus): links the project user status choice to the user
+        storage_status (AllocationUserStorageStatusChoice): information about whether storage is provisioned for user
+        storage_permissions (AllocationUserStoragePermissionChoice): permissions an user has on storage
     """
 
     allocation = models.ForeignKey(Allocation, on_delete=models.CASCADE)
-    author = models.ForeignKey(User, on_delete=models.CASCADE)
-    is_private = models.BooleanField(default=True)
-    note = models.TextField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    status = models.ForeignKey(AllocationUserStatusChoice, on_delete=models.CASCADE,
+                               verbose_name='Allocation User Status')
+    storage_status = models.ForeignKey(AllocationUserStorageStatusChoice, on_delete=models.CASCADE,
+                               verbose_name='Allocation User Storage Status', default=AllocationUserStorageStatusChoice.get_default_id)
+    storage_permissions = models.ForeignKey(AllocationUserStoragePermissionChoice, on_delete=models.CASCADE,
+                               verbose_name='Allocation User Permission', default=AllocationUserStoragePermissionChoice.get_default_id)
+    history = HistoricalRecords()
 
     def __str__(self):
-        return self.note
+        return '%s' % (self.user)
+
+    class Meta:
+        verbose_name_plural = 'Allocation User Status'
+        unique_together = ('user', 'allocation')
 
 
 class AttributeType(TimeStampedModel):

@@ -1,0 +1,72 @@
+{% extends "common/base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+
+{% block title %}
+Change Users' Storage Permissions on Allocation
+{% endblock %}
+
+{% block content %}
+<h2>Change permissions for users in allocation for project: {{allocation.project.title}}</h2>
+<hr>
+
+{% if formset %}
+  <div class="card border-light">
+    <div class="card-header">
+      <h3 class="d-inline"><i class="fas fa-key" aria-hidden="true"></i> Eligible Users</h3> 
+      <div style="padding-top: 1.25em;" >
+        <p>The following users are associated with this allocation and are eligible to have their permissions changed.
+        </p>
+        <p>Only active users who do not currently have a pending permission change are displayed.
+          If you want to remove all permissions from an user, they should be 
+          <a href="{% url 'allocation-remove-users' allocation.pk %}" role="button">
+            removed from the allocation.
+          </a>
+        </p>
+      </div>
+    </div>
+    <div class="card-body">
+      <form action="{% url 'allocation-change-user-permissions' allocation.pk %}" method="post">
+        {% csrf_token %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th scope="col">Username</th>
+                <th scope="col">First Name</th>
+                <th scope="col">Last Name</th>
+                <th scope="col">Permissions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for form in formset %}
+                <tr>
+                  <td>{{ form.username.value }}</td>
+                  <td>{{ form.first_name.value }}</td>
+                  <td>{{ form.last_name.value }}</td>
+                  <td>{{ form.permissions }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {{ formset.management_form }}
+        <div>
+          <button type="submit" class="btn btn-primary confirm-add"><i class="fas
+              fa-user-plus"></i> Change Users' Permissions</button>
+          <a class="btn btn-secondary" href="{% url 'allocation-detail' allocation.pk %}" role="button"><i class="fas fa-long-arrow-left" aria-hidden="true"></i>
+            Back to Allocation</a>
+          <br>
+        </div>
+      </form>
+    </div>
+  </div>
+{% else %}
+  <a class="btn btn-secondary mb-3" href="{% url 'allocation-detail' allocation.pk %}" role="button"><i class="fas fa-long-arrow-left" aria-hidden="true"></i> Back to Allocation</a>
+  <div class="alert alert-info">
+    No users in project are currently eligible for a permissions change!
+  </div>
+{% endif %}
+
+{% endblock %}
