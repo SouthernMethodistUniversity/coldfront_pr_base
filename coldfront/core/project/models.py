@@ -12,6 +12,7 @@ from model_utils.models import TimeStampedModel
 from simple_history.models import HistoricalRecords
 
 from coldfront.core.field_of_science.models import FieldOfScience
+from coldfront.core.department.models import Department
 from coldfront.core.utils.common import import_from_settings
 
 PROJECT_ENABLE_PROJECT_REVIEW = import_from_settings('PROJECT_ENABLE_PROJECT_REVIEW', False)
@@ -54,6 +55,7 @@ class Project(TimeStampedModel):
         pi (User): represents the User object of the project's PI
         description (str): description of the project
         field_of_science (FieldOfScience): represents the field of science for this project
+        departments (Department): represents departments for this project
         status (ProjectStatusChoice): represents the ProjectStatusChoice of this project
         force_review (bool): indicates whether or not to force a review for the project
         requires_review (bool): indicates whether or not the project requires review
@@ -89,6 +91,8 @@ We do not have information about your research. Please provide a detailed descri
     )
 
     field_of_science = models.ForeignKey(FieldOfScience, on_delete=models.CASCADE, default=FieldOfScience.DEFAULT_PK)
+    departments = models.ManyToManyField(Department,
+                                         help_text="""Please enter all departments associated with this project""")
     status = models.ForeignKey(ProjectStatusChoice, on_delete=models.CASCADE)
     force_review = models.BooleanField(default=False)
     requires_review = models.BooleanField(default=True)

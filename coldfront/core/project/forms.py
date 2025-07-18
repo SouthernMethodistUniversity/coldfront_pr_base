@@ -194,4 +194,4 @@ class ProjectAttributeUpdateForm(forms.Form):
 class ProjectCreationForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ['title', 'description', 'field_of_science']
+        fields = ['title', 'description', 'field_of_science', 'departments']
